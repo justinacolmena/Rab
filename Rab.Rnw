@@ -1,0 +1,139 @@
+\documentclass[letterpaper,12pt]{article}         % the type of document and font size (default 10pt)
+\usepackage[margin=1.0in]{geometry}   % sets all margins to 1in, can be changed
+\usepackage{moreverb}                 % for verbatimtabinput -- LaTeX environment
+\usepackage{url}                      % for \url{} command
+\usepackage{amssymb}                  % for many mathematical symbols
+\usepackage[pdftex]{lscape}           % for landscaped tables
+\usepackage{longtable}                % for tables that break over multiple pages
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true, %set true if you want colored links
+	linktoc=all,     %set to all if you want both sections and subsections linked
+	linkcolor=blue,  %choose some color if you want links to stand out
+}
+\usepackage{color}
+
+\usepackage[numbers]{natbib}
+\bibliographystyle{plainnat}
+
+\title{\textsf{R}: $\alpha$, and $\beta$}  % to specify title
+\author{justina colmena}          % to specify author(s)
+\begin{document}                      % document begins here
+
+% If .nw file contains graphs: To specify that EPS/PDF graph files are to be 
+% saved to 'graphics' sub-folder
+%     NOTE: 'graphics' sub-folder must exist prior to Sweave step
+%\SweaveOpts{prefix.string=graphics/plot}
+
+% If .nw file contains graphs: to modify (shrink/enlarge} size of graphics 
+% file inserted
+%         NOTE: can be specified/modified before any graph chunk
+\setkeys{Gin}{width=1.0\textwidth}
+
+\maketitle              % makes the title
+\tableofcontents        % inserts TOC (section, sub-section, etc numbers and titles)
+\listoftables           % inserts LOT (numbers and captions)
+\listoffigures          % inserts LOF (numbers and captions)
+%                        %     NOTE: graph chunk must be wrapped with \begin{figure}, 
+%                        %  \end{figure}, and \caption{}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Where everything else goes
+
+\section{Prerequisites}
+Before starting this project, we were somewhat familiar with \textsf{R} \cite{r-project} and \LaTeX \cite{latex-project}, as well as with Donald Knuth's philosophy of ``literate programming'' \cite{knuth1992}, but we had not yet used the ``Sweave'' function \cite{geyer-Sweave} of \textsf{R}, whose official documentation seems to have disappeared along with its author \cite{leisch2018}.  Fortunately for our purposes, we found an easy Sweave template \cite{kerns2011} online, which we adapted into this paper.
+
+\section{Getting started}
+We are going to calculate the beta of a stock using free data \cite{fred,quandl} in \textsf{R} \cite{r-project}.
+Nowadays it is fashionable to use APIs \cite{boysel-fredr,cran-quandl} to fetch the data for analysis, which is very
+convenient once it is set up, even though it is somewhat technical and a little bit of work to get it working.
+
+Once the API packages are installed, we must load them from the library in order to be able to use them in our
+\textsf{R} session. We also need to load our API account keys for access credentials to use the data.
+
+<<>>=
+library('dplyr')
+library('xts')
+library('fredr')
+library('Quandl')
+source('my_api_keys.R')
+fredr_key(my_fred_api_key)
+Quandl.api_key(my_quandl_api_key)
+@
+
+\section{Fetching the data}
+To calculate the beta of a stock, we need a major market index, an index of returns on a
+so-called ``risk-free interest rate'' and returns for our stock of interest. Let us fetch some data
+for the S\&P 500 Index, the Federal Runds rate, and our stock of interest \cite{coeur}.
+
+\subsection{Time period for analysis}
+Assign an arbitrary \texttt{start\_date} and an \texttt{end\_date}.
+
+<<>>=
+today <- Sys.Date()
+start_date <- today - 182
+end_date <- today
+@
+
+\subsection{S\&P 500: benchmark $\beta=1$}
+The S\&P~500 is a common performance benchmark for $\beta=1$ in the stock market. 
+<<>>=
+fetch_fred_sp500 <- fredr_series(series_id = 'SP500',
+    observation_start=start_date, observation_end=end_date)
+sp500 <- data.frame(date=index(fetch_fred_sp500),
+    coredata(fetch_fred_sp500))
+sp500[1:3,]
+@
+\subsection{Fed Funds rate: benchmark $\beta=0$}
+We also need a so-called ``risk-free'' rate of interest as a benchmark for $\beta=0$.
+<<>>=
+fetch_fred_ffr <- fredr_series(series_id = 'DFF',
+    observation_start = start_date, observation_end = end_date)
+ffr <- data.frame(date=index(fetch_fred_ffr),
+    coredata(fetch_fred_ffr))
+ffr[1:3,]
+@
+After fetching the data, we construct an estimated risk-free index \texttt{RFI} by making an imaginary deposit of \$1,000.00 and investing it each banking day at the reported Daily Federal Funds rate actual/365 simple interest\footnote{Actual/365 simple interest is only a guess: as we all know, the Fed is highly secretive about its operations, and we are only \textit{estimating} for this purpose.} until the next banking day.
+<<>>=
+ffr$RFI[1] <- 1000.00
+for(i in 2:nrow(ffr))
+{
+    ffr$RFI[i] <- lag(ffr$RFI)[i] *
+        (1 + lag(ffr$DFF)[i] / 100 *
+            (ffr$date[i]-lag(ffr$date)[i]) / 365)
+}
+ffr[1:3,]
+@
+\subsection{Stock ticker data}
+<<>>=
+fetch_quandl_p	<- Quandl.datatable('WIKI/PRICES',
+    ticker='CDE', date.gte=start_date, date.lte=end_date,
+    qopts.columns=c("date", "adj_close"))
+fetch_quandl_p[1:3,]
+@
+We use an ``adjusted close'' price of the stock we are analyzing; namely a daily price ticker series based on actual closing price, but conveniently ``adjusted'' for dividends and share splits.
+\section{Analyzing the data}
+The first step in analyzing the data is to ``splice'' it together --- we have price level series for a major market index, a risk-free index, and the stock of our interest.  We will use an \mbox{\textit{inner\_join}}, because there are possibly some banking days on which the stock market is closed or vice versa.
+
+<<>>=
+j <- inner_join(
+    inner_join(ffr, sp500, by="date"),
+        fetch_quandl_p, by="date")
+j$r0 <- log(j$RFI) - log(lag(j$RFI))
+j$r1 <- log(j$SP500) - log(lag(j$SP500))
+j$r2 <- log(j$adj_close) - log(lag(j$adj_close))
+j$x <- j$r1 - j$r0
+j$y <- j$r2 - j$r0
+@
+
+\begin{figure}
+<<echo = FALSE, fig = TRUE>>=
+plot(j$x, j$y)
+@
+\caption{Here is the plot we made}
+\end{figure}
+
+\phantomsection\addcontentsline{toc}{section}{References}\bibliography{Rab}{}
+
+\end{document}
+
+

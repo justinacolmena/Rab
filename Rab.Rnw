@@ -1,4 +1,5 @@
 \documentclass[letterpaper,12pt]{article}         % the type of document and font size (default 10pt)
+\usepackage[utf8]{inputenc}
 \usepackage[margin=1.0in]{geometry}   % sets all margins to 1in, can be changed
 \usepackage{moreverb}                 % for verbatimtabinput -- LaTeX environment
 \usepackage{url}                      % for \url{} command
@@ -56,6 +57,9 @@ library('xts')
 library('fredr')
 library('Quandl')
 source('my_api_keys.R')
+## my_api_keys.R ##
+# my_fred_api_key <- 'myrealfredapikey'
+# my_quandl_api_key <- 'myrealquandlapikey'
 fredr_key(my_fred_api_key)
 Quandl.api_key(my_quandl_api_key)
 @
@@ -72,6 +76,8 @@ Assign an arbitrary \texttt{start\_date} and an \texttt{end\_date}.
 today <- Sys.Date()
 start_date <- today - 182
 end_date <- today
+start_date
+end_date
 @
 
 \subsection{S\&P 500: benchmark $\beta=1$}
@@ -127,13 +133,47 @@ j$y <- j$r2 - j$r0
 
 \begin{figure}
 <<echo = FALSE, fig = TRUE>>=
-plot(j$x, j$y)
+matplot(j$date-j$date[1]+1,data.frame(j$RFI*100/j$RFI[1],
+    j$SP500*100/j$SP500[1], j$adj_close*100/j$adj_close[1]),
+    type="l", col=c("green", "red", "blue"), lty=1,
+    xlab="days elapsed since start_date", ylab="price level starting at 100",
+    main="price level performance")
+legend(x="topleft", legend=c("Fed Funds", "S&P 500", "our stock"), lty=1,
+    col=c("green", "red", "blue"))
 @
-\caption{Here is the plot we made}
+\caption{Plot of price level data}
+\end{figure}
+
+\subsection{Fitting a linear model}
+The next step is to fit a linear model to the data, 
+\begin{equation}
+	y_i = \alpha + \beta x_i + \epsilon_i,\qquad 1\le i\le n,
+\end{equation}
+where the ``Sum of Squared Error''
+\begin{equation}
+	SSE = \sum_{i=1}^{n}\epsilon_{i}^{2}
+	= \sum_{i=1}^{n}\big(y_i-(\alpha+\beta x_i)\big)^{2}
+\end{equation}
+is \textit{minimized}.
+
+This is very easy to do in \textsf{R}. The coefficient labeled ``\mbox{\texttt{(Intercept)}}'' is known as $\alpha$ (``alpha'') --- in this case a \textit{daily} $\alpha$ which would have to be multiplied by $365$ to yield an annual ``stock market $\alpha$'' --- except that this is not always statistically significant in a linear regression of daily stock market returns.
+
+The coefficient labeled ``\mbox{\texttt{x}}'' is the $\beta$ (``beta'') of the stock whose returns we are modeling against those of the S\&P500.
+
+<<>>=
+model1 <- lm(formula = y ~ x, data = j)
+summary(model1)
+@
+
+\begin{figure}
+<<echo = FALSE, fig = TRUE>>=
+plot(j$x, j$y, xlab="the S&P 500", ylab="our stock",
+   main = "daily log returns", sub="adjusted for Fed Funds rate")
+abline(reg=model1, col="red")
+@
+\caption[Plot of linear model]{Scatter plot of linear model with line of best fit}
 \end{figure}
 
 \phantomsection\addcontentsline{toc}{section}{References}\bibliography{Rab}{}
 
 \end{document}
-
-

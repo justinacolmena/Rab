@@ -171,9 +171,9 @@ The coefficient labeled ``\mbox{\texttt{(Intercept)}}'' is known as $\alpha$ (``
 The coefficient labeled ``\mbox{\texttt{x}}'' is the estimated $\beta$ (``beta'') of the stock whose returns we are modeling against those of the market in general.  A red line is plotted in Figure~\ref{lm-plot} with the slope and intercept of this model
 
 \subsection{Forced $\alpha=0$ model}
-Now it would be rare, exceptional, and not particularly meaningful if the reported coefficient for the \mbox{\texttt{(Intercept)}} of \mbox{\texttt{model\_1}} were statistically different from zero.  The lack of statistical significance of estimates of $\alpha$ is strong evidence for the common saying or disclaimer, ``Past performance is no guarantee of future returns.''
+Now it would be rare, exceptional, and not particularly meaningful if the reported coefficient for the \mbox{\texttt{(Intercept)}} of \mbox{\texttt{model\_1}} were statistically different from zero.  The profound lack of statistical significance of estimates of $\alpha$ is strong evidence for the common saying or disclaimer: ``Past performance is no guarantee of future returns.''
 
-Some readers may be of the philosophy that there is no free lunch, and therefore $\alpha=0$, and one free parameter may be eliminated from the model without affecting its validity.
+Some readers may be of the philosophy that ``There Ain't No Such Thing As A Free Lunch'' \cite{henderson2014,heinlein1966}, $\alpha=0$, and therefore one free parameter may be eliminated from the model without affecting its validity.
 
 <<>>=
 model_0 <- lm(formula = y ~ x - 1, data = j)
@@ -187,9 +187,9 @@ plot(j$x, j$y, xlab="the S&P 500", ylab="our stock",
 abline(reg=model_1, col="red")
 abline(reg=model_0, col="green")
 legend(x="bottomright", legend=c("free alpha", "forced alpha=0"),
-   col=c("red","green"))
+   col=c("red","green"), lty=1)
 @
-\caption[Plot of linear model]{Scatter plot of linear model with line of best fit}
+\caption{Scatter plot with lines of best fit from linear model}
 \label{lm-plot}
 \end{figure}
 
